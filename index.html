@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Пульсирующее сердце</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #000;
+        touch-action: manipulation;
+        cursor: pointer;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="heartCanvas"></canvas>
+
+    <script>
+      const canvas = document.getElementById("heartCanvas");
+      const ctx = canvas.getContext("2d");
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      const particles = [];
+      const particleCount = 1000; // Увеличили количество частиц для плотного заполнения
+      const mouse = { x: null, y: null, radius: 150 }; // Увеличили радиус воздействия
+
+      function heartShape(t, scale) {
+        scale = scale || 10;
+        return {
+          x: 16 * Math.pow(Math.sin(t), 3) * scale,
+          y:
+            -(
+              13 * Math.cos(t) -
+              5 * Math.cos(2 * t) -
+              2 * Math.cos(3 * t) -
+              Math.cos(4 * t)
+            ) * scale,
+        };
+      }
+
+      function initParticles() {
+        for (let i = 0; i < particleCount; i++) {
+          const t = (Math.PI * 2 * i) / particleCount;
+          // Уменьшили масштаб сердца (делим на 30 вместо 20)
+          const heartPos = heartShape(
+            t,
+            Math.min(canvas.width, canvas.height) / 30
+          );
+
+          // Добавим небольшую случайность для плотного заполнения
+          const randomness = 0.3;
+          const randomOffsetX = (Math.random() - 0.5) * 20 * randomness;
+          const randomOffsetY = (Math.random() - 0.5) * 20 * randomness;
+
+          particles.push({
+            x: canvas.width / 2 + heartPos.x + randomOffsetX,
+            y: canvas.height / 2 + heartPos.y + randomOffsetY,
+            size: Math.random() * 2 + 1, // Уменьшили размер частиц
+            baseX: canvas.width / 2 + heartPos.x + randomOffsetX,
+            baseY: canvas.height / 2 + heartPos.y + randomOffsetY,
+            density: Math.random() * 15 + 5, // Увеличили плотность для более резкого разлета
+            pulse: Math.random() * 0.8 + 0.5, // Усилили пульсацию
+            time: Math.random() * Math.PI * 2,
+            speed: Math.random() * 3 + 1, // Добавили индивидуальную скорость
+          });
+        }
+      }
+
+      function drawParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+
+          // Более интенсивная пульсация
+          p.time += 0.05;
+          const pulseFactor = 0.7 + Math.sin(p.time * 1.5) * p.pulse * 0.3;
+          const currentSize = p.size * pulseFactor;
+          const opacity = pulseFactor * 0.9;
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, currentSize, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.fillStyle = `rgba(255, ${50 + Math.sin(p.time) * 50}, ${
+            50 + Math.sin(p.time + 2) * 50
+          }, ${opacity})`;
+          ctx.fill();
+
+          if (mouse.x !== null && mouse.y !== null) {
+            const dx = mouse.x - p.x;
+            const dy = mouse.y - p.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < mouse.radius) {
+              const forceDirectionX = dx / distance;
+              const forceDirectionY = dy / distance;
+              // Более хаотичный разлет с учетом индивидуальной скорости
+              const force =
+                ((mouse.radius - distance) / mouse.radius) * 10 * p.speed;
+
+              // Добавим случайное отклонение для хаотичности
+              const chaos = 0.3;
+              p.x -=
+                forceDirectionX *
+                force *
+                p.density *
+                (1 + (Math.random() - 0.5) * chaos);
+              p.y -=
+                forceDirectionY *
+                force *
+                p.density *
+                (1 + (Math.random() - 0.5) * chaos);
+            } else {
+              // Возвращение с некоторой инерцией
+              if (Math.abs(p.x - p.baseX) > 0.1) {
+                const dx = p.x - p.baseX;
+                p.x -= dx / (8 + Math.random() * 5); // Разная скорость возврата
+              }
+              if (Math.abs(p.y - p.baseY) > 0.1) {
+                const dy = p.y - p.baseY;
+                p.y -= dy / (8 + Math.random() * 5);
+              }
+            }
+          } else {
+            if (Math.abs(p.x - p.baseX) > 0.1) {
+              const dx = p.x - p.baseX;
+              p.x -= dx / 15;
+            }
+            if (Math.abs(p.y - p.baseY) > 0.1) {
+              const dy = p.y - p.baseY;
+              p.y -= dy / 15;
+            }
+          }
+        }
+
+        requestAnimationFrame(drawParticles);
+      }
+
+      mouse.x = canvas.width / 2;
+      mouse.y = canvas.height / 2;
+
+      canvas.addEventListener("mousemove", (e) => {
+        mouse.x = e.x;
+        mouse.y = e.y;
+      });
+
+      canvas.addEventListener(
+        "touchmove",
+        (e) => {
+          e.preventDefault();
+          mouse.x = e.touches[0].clientX;
+          mouse.y = e.touches[0].clientY;
+        },
+        { passive: false }
+      );
+
+      canvas.addEventListener("mouseout", () => {
+        mouse.x = null;
+        mouse.y = null;
+      });
+
+      initParticles();
+      drawParticles();
+    </script>
+  </body>
+</html>
